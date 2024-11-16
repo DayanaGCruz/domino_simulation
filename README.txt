@@ -1,0 +1,1 @@
+g++ d*.cpp -o run -lGL -lGLU -lglut && ./run

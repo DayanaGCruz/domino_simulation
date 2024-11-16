@@ -1,5 +1,6 @@
-#include <GL/glut.h> 
+#include <GL/glut.h> // Windowing & Scene Rendering 
 #include <iostream> // Console logging
+#include <cmath> 
 
 class Domino 
 {
@@ -123,7 +124,7 @@ void display()
     );
 
     DrawDominoSequence();
-    
+
     glutSwapBuffers(); // Swap buffers for double buffering
 
 }
@@ -138,14 +139,46 @@ void reshape (int win_w, int win_h)
 
 }
 
-void DrawDominoSequence()
-{
-    // Create a single domino
-    Domino domino1(0.0f, 1.0f, 0.0f, 1.0f, 2.0f, 0.5f, 0.784f, 0.635f, 0.784f);
+void HSVtoRGB(float h, float s, float v, float& r, float& g, float& b) {
+    int i = int(h * 6.0f);
+    float f = (h * 6.0f) - i;
+    float p = v * (1.0f - s);
+    float q = v * (1.0f - f * s);
+    float t = v * (1.0f - (1.0f - f) * s);
 
-    // Create another domino with different properties
-    Domino domino2(2.0f, 1.0f, 0.0f, 1.0f, 2.0f, 0.5f, 0.1f, 0.5f, 0.5f);
+    switch (i % 6) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+    }
+}
 
-    domino1.draw();
-    domino2.draw();
+
+void DrawDominoSequence() {
+    const int numDominos = 36; // Number of dominos in the circle
+    const float radius = 5.0f; // Radius of the circle
+    const float height = 2.0f; // Height of each domino
+    const float width = 0.7f;  // Width of each domino
+    const float depth = 0.2f;  // Depth of each domino
+
+    for (int i = 0; i < numDominos; ++i) {
+        float angle = i * (360.0f / numDominos); // Angle for each domino
+        float rad = angle * (M_PI / 180.0f);     // Convert to radians
+
+        // Calculate position based on circle
+        float x = radius * cos(rad);
+        float z = radius * sin(rad);
+
+        // Calculate rainbow color (HSV to RGB conversion)
+        float hue = angle / 360.0f; // Hue value (normalized)
+        float r, g, b;
+        HSVtoRGB(hue, 1.0f, 1.0f, r, g, b); // Full saturation and value
+
+        // Create and draw the domino
+        Domino domino(x, height / 2.0f, z, width, height, depth, r, g, b);
+        domino.draw();
+    }
 }

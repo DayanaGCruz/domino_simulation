@@ -28,32 +28,48 @@ public:
     GLfloat rotation;       // Rotation angle
     float r, g, b;          // RGB color
     bool isFalling;         // Falling state
-    float fallDelay;        // Time delay before falling
+    bool isTriggered;       // Whether the domino has been triggered to fall
 
     // Constructor
     Domino(GLfloat xPos, GLfloat yPos, GLfloat zPos,
            GLfloat w, GLfloat h, GLfloat d,
-           GLfloat red, GLfloat green, GLfloat blue, float delay)
+           GLfloat red, GLfloat green, GLfloat blue)
         : x(xPos), y(yPos), z(zPos),
           width(w), height(h), depth(d),
           rotation(0.0f), r(red), g(green), b(blue),
-          isFalling(false), fallDelay(delay) {}
+          isFalling(false), isTriggered(false) {}
 
     // Update the Domino's animation
-    void update(float deltaTime) {
-        if (isFalling && fallDelay <= 0.0f) {
-            rotation += 100.0f * deltaTime; // Rotate 100 degrees/sec
-            if (rotation > 90.0f) rotation = 90.0f; // Clamp at 90 degrees
-        } else if (isFalling) {
-            fallDelay -= deltaTime; // Countdown to start falling
+    void update(float deltaTime, float nextDominoX, float nextDominoZ, bool nextDominoFalling, bool triggerNext) {
+    if (isFalling) {
+        rotation += 100.0f * deltaTime; // Rotate 100 degrees/sec
+        if (rotation > 90.0f) rotation = 90.0f; // Clamp at 90 degrees
+
+        // If this domino has fallen enough to trigger the next one
+        if (rotation > 45.0f && !nextDominoFalling) {
+            isTriggered = true; // Mark this domino as triggered
         }
     }
+
+    // Trigger the fall of the next domino if this one has fallen enough to touch it
+    if (isTriggered && !nextDominoFalling && triggerNext) {
+        float distanceToNext = sqrt(pow(nextDominoX - x, 2) + pow(nextDominoZ - z, 2));
+        if (distanceToNext < (width + 0.2f)) {  // Domino has fallen enough to touch the next one
+            // Trigger the next domino to fall
+            isFalling = true;
+            isTriggered = false; // Reset this domino's trigger
+        }
+    }
+    }
+
+
+
 
     // Draw the Domino
     void draw() const {
         glPushMatrix();
         glTranslatef(x, y, z);
-        glRotatef(rotation, 0.0f, 0.0f, 1.0f); // Rotate around Z-axis
+        glRotatef(rotation, 1.0f, 0.0f, 0.0f); // Rotate around X-axis for front-facing fall
         glColor3f(r, g, b);
         drawRectangularPrism(width, height, depth);
         glPopMatrix();
@@ -90,7 +106,8 @@ private:
 // Global variables
 std::vector<Domino> dominos;
 GLint WIN_WIDTH = 800, WIN_HEIGHT = 800;
-bool simulationActive = false;
+bool simulationActive = false; // Track if the simulation has started
+int fallingDominoIndex = 0;  // Index of the domino that is currently falling
 
 // Function declarations
 void init();
@@ -127,7 +144,8 @@ int main(int argc, char** argv) {
         float r, g, b;
         HSVtoRGB(hue, 1.0f, 1.0f, r, g, b);
 
-        dominos.emplace_back(x, 1.0f, z, 0.7f, 2.0f, 0.2f, r, g, b, i * 0.1f);
+        // Add domino with position, color, etc.
+        dominos.emplace_back(x, 1.0f, z, 0.7f, 2.0f, 0.2f, r, g, b);
     }
 
     glutMainLoop();
@@ -148,17 +166,22 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
 
-    gluLookAt(10.0, 5.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    gluLookAt(10.0, 10.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
 
-    if (simulationActive) {
-        for (auto& domino : dominos) {
-            domino.update(deltaTime);
-        }
+    // Update and draw each domino
+    for (size_t i = 0; i < dominos.size(); ++i) {
+        bool nextDominoFalling = (i + 1 < dominos.size()) ? dominos[i + 1].isFalling : false;
+        bool triggerNext = (i + 1 < dominos.size()) ? true : false; // Can this domino trigger the next one?
+
+        dominos[i].update(deltaTime, (i + 1 < dominos.size()) ? dominos[i + 1].x : 0.0f,
+                          (i + 1 < dominos.size()) ? dominos[i + 1].z : 0.0f, nextDominoFalling, triggerNext);
+
+        dominos[i].draw();
     }
-    DrawDominoSequence();
 
     glutSwapBuffers();
 }
+
 
 void reshape(int win_w, int win_h) {
     glViewport(0, 0, win_w, win_h);
@@ -171,23 +194,17 @@ void reshape(int win_w, int win_h) {
 void onMouseClick(int button, int state, int x, int y) {
     if (state == GLUT_DOWN) {
         if (button == GLUT_LEFT_BUTTON) {
-            simulationActive = true; // Start the simulation
-            for (auto& domino : dominos) {
-                domino.isFalling = true;
-            }
+            simulationActive = true;
+            fallingDominoIndex = 0;
+            dominos[fallingDominoIndex].isFalling = true;
         } else if (button == GLUT_RIGHT_BUTTON) {
-            simulationActive = false; // Reset the simulation
+            simulationActive = false;
+            fallingDominoIndex = 0;
             for (auto& domino : dominos) {
-                domino.isFalling = false;
                 domino.rotation = 0.0f;
-                domino.fallDelay = 0.0f;
+                domino.isFalling = false;
+                domino.isTriggered = false;
             }
         }
-    }
-}
-
-void DrawDominoSequence() {
-    for (const auto& domino : dominos) {
-        domino.draw();
     }
 }

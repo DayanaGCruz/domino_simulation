@@ -2,6 +2,9 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 
 // Utility function to convert HSV to RGB
 void HSVtoRGB(float h, float s, float v, float& r, float& g, float& b) {
@@ -73,37 +76,38 @@ void update(float deltaTime, float targetX, float targetZ, std::vector<Domino>& 
     }
 
     if (isFalling) {
-        // Rotate the domino in the opposite direction
-        rotation -= 100.0f * deltaTime; // Apply negative rotation to rotate counterclockwise
+        std::cout << "Domino " << index << " is falling!\n\t W: " << dominos[index].width << " H: " << dominos[index].height<< " D: "<< dominos[index].depth << "\t X:" << dominos[index].x << " Y: " << dominos[index].y << " Z: " << dominos[index].z << std::endl;
+        rotation += 100.0f * deltaTime;
 
-        if (rotation < -90.0f) {
-            rotation = -90.0f; // Limit rotation to -90 degrees (opposite direction)
+        if (rotation > 90.0f) {
+            rotation = 90.0f; 
         }
 
         // Check for collision with the next domino in the array (neighboring domino)
         size_t nextIndex = (index + 1) % dominos.size(); // Wrap around if it reaches the end
         size_t prevIndex = (index -1) % dominos.size();
         // If the domino is rotating and its rotation reaches -90 degrees, check for collision
+        std::cout << "Checking collision of Domino " << index << " with Domino " << nextIndex << "\n\t W: " << dominos[nextIndex].width << " H: " << dominos[nextIndex].height<< " D: "<< dominos[nextIndex].depth << "\t X:" << dominos[nextIndex].x << " Y: " << dominos[nextIndex].y << " Z: " << dominos[nextIndex].z << std::endl;
+        std::cout << "Checking collision of Domino " << index << " with Domino " << prevIndex << "\n\t W: " << dominos[prevIndex].width << " H: " << dominos[prevIndex].height<< " D: "<< dominos[prevIndex].depth << "\t X:" << dominos[prevIndex].x << " Y: " << dominos[prevIndex].y << " Z: " << dominos[prevIndex].z << std::endl;
         if (isColliding(*this, dominos[nextIndex]) && !dominos[nextIndex].isFalling) {
             std::cout << "COLLISION DETECTED" << std::endl;
-            std::cout << "Domino " << nextIndex << " is falling!" << std::endl;
 
             // Only start falling the next domino if it is not already falling
             dominos[nextIndex].isFalling = true;
 
             // Stop further rotation once collision occurs
-            rotation = -90.0f; // Ensure rotation is capped at -90 degrees after collision
+            rotation = 90.0f; 
         }
-        else if(isColliding(*this, dominos[prevIndex]) && !dominos[nextIndex].isFalling)
+        else if(isColliding(*this, dominos[prevIndex]) && !dominos[prevIndex].isFalling)
         {
                         std::cout << "COLLISION DETECTED" << std::endl;
             std::cout << "Domino " << nextIndex << " is falling!" << std::endl;
 
             // Only start falling the next domino if it is not already falling
-            dominos[nextIndex].isFalling = true;
+            dominos[prevIndex].isFalling = true;
 
             // Stop further rotation once collision occurs
-            rotation = -90.0f; // Ensure rotation is capped at -90 degrees after collision
+            rotation = 90.0f; 
         }
     }
 }
@@ -287,12 +291,70 @@ void onMouseClick(int button, int state, int x, int y) {
 }
 
 bool isColliding(const Domino& d1, const Domino& d2) {
-    // Simplified collision detection: check if dominoes are overlapping
-    float distanceX = fabs(d1.x - d2.x);
-    float distanceZ = fabs(d1.z - d2.z);
+    // Convert width, depth, and height to half-extents for convenience
+    glm::vec3 halfSize1 = glm::vec3(d1.width / 2.0f, d1.height / 2.0f, d1.depth / 2.0f);
+    glm::vec3 halfSize2 = glm::vec3(d2.width / 2.0f, d2.height / 2.0f, d2.depth / 2.0f);
 
-    // Consider a small distance threshold for collision
-    return distanceX < (d1.width / 2.0f + d2.width / 2.0f) &&
-           distanceZ < (d1.depth / 2.0f + d2.depth / 2.0f) &&
-           d1.y <= d2.y + d2.height / 2.0f;
+    // Define rotation matrices based on current rotation angles
+    glm::mat4 rotationMatrix1 = glm::rotate(glm::mat4(1.0f), glm::radians(d1.rotation), glm::vec3(1.0f, 0.0f, 0.0f));
+    glm::mat4 rotationMatrix2 = glm::rotate(glm::mat4(1.0f), glm::radians(d2.rotation), glm::vec3(1.0f, 0.0f, 0.0f));
+
+    // World corners computation
+    glm::vec3 d1Corners[8], d2Corners[8];
+
+    // Generate the corners for d1
+    glm::vec3 localCorners1[] = {
+        {-halfSize1.x, -halfSize1.y, -halfSize1.z}, {halfSize1.x, -halfSize1.y, -halfSize1.z},
+        {halfSize1.x, -halfSize1.y, halfSize1.z},  {-halfSize1.x, -halfSize1.y, halfSize1.z},
+        {-halfSize1.x, halfSize1.y, -halfSize1.z}, {halfSize1.x, halfSize1.y, -halfSize1.z},
+        {halfSize1.x, halfSize1.y, halfSize1.z},   {-halfSize1.x, halfSize1.y, halfSize1.z}
+    };
+
+    for (int i = 0; i < 8; i++) {
+        d1Corners[i] = glm::vec3(rotationMatrix1 * glm::vec4(localCorners1[i], 1.0f)) + glm::vec3(d1.x, d1.y, d1.z);
+    }
+
+    // Generate the corners for d2
+    glm::vec3 localCorners2[] = {
+        {-halfSize2.x, -halfSize2.y, -halfSize2.z}, {halfSize2.x, -halfSize2.y, -halfSize2.z},
+        {halfSize2.x, -halfSize2.y, halfSize2.z},  {-halfSize2.x, -halfSize2.y, halfSize2.z},
+        {-halfSize2.x, halfSize2.y, -halfSize2.z}, {halfSize2.x, halfSize2.y, -halfSize2.z},
+        {halfSize2.x, halfSize2.y, halfSize2.z},   {-halfSize2.x, halfSize2.y, halfSize2.z}
+    };
+
+    for (int i = 0; i < 8; i++) {
+        d2Corners[i] = glm::vec3(rotationMatrix2 * glm::vec4(localCorners2[i], 1.0f)) + glm::vec3(d2.x, d2.y, d2.z);
+    }
+
+    // Compute AABB bounds for d1 and d2
+    glm::vec3 d1Min = d1Corners[0], d1Max = d1Corners[0];
+    glm::vec3 d2Min = d2Corners[0], d2Max = d2Corners[0];
+
+    for (int i = 1; i < 8; i++) {
+        d1Min = glm::min(d1Min, d1Corners[i]);
+        d1Max = glm::max(d1Max, d1Corners[i]);
+        d2Min = glm::min(d2Min, d2Corners[i]);
+        d2Max = glm::max(d2Max, d2Corners[i]);
+    }
+
+    // Debugging prints for AABB bounds
+    std::cout << "Domino A AABB: Min(" << d1Min.x << ", " << d1Min.y << ", " << d1Min.z
+              << ") Max(" << d1Max.x << ", " << d1Max.y << ", " << d1Max.z << ")\n";
+    std::cout << "Domino B AABB: Min(" << d2Min.x << ", " << d2Min.y << ", " << d2Min.z
+              << ") Max(" << d2Max.x << ", " << d2Max.y << ", " << d2Max.z << ")\n";
+
+    // Check for overlap in all three dimensions (AABB test)
+    bool collision = (d1Min.x <= d2Max.x && d1Max.x >= d2Min.x) &&
+                     (d1Min.y <= d2Max.y && d1Max.y >= d2Min.y) &&
+                     (d1Min.z <= d2Max.z && d1Max.z >= d2Min.z);
+
+    if (collision) {
+        std::cout << "Collision detected between dominos!\n";
+    } else {
+        std::cout << "No collision detected.\n";
+    }
+
+    return collision;
 }
+
+

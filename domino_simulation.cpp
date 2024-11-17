@@ -46,7 +46,6 @@ public:
           isFalling(false), isEnteringCircle(true),
           speed(3.0f), entryDelay(delay), timeElapsed(0.0f) {}
 
-    // Update the Domino's animation
 // Update the Domino's animation
 void update(float deltaTime, float targetX, float targetZ, std::vector<Domino>& dominos, size_t index) {
     timeElapsed += deltaTime;
@@ -74,33 +73,40 @@ void update(float deltaTime, float targetX, float targetZ, std::vector<Domino>& 
     }
 
     if (isFalling) {
+        // Rotate the domino in the opposite direction
+        rotation -= 100.0f * deltaTime; // Apply negative rotation to rotate counterclockwise
+
+        if (rotation < -90.0f) {
+            rotation = -90.0f; // Limit rotation to -90 degrees (opposite direction)
+        }
+
         // Check for collision with the next domino in the array (neighboring domino)
         size_t nextIndex = (index + 1) % dominos.size(); // Wrap around if it reaches the end
-
-        // Check for collision with the next domino
-        if (isColliding(*this, dominos[nextIndex])) {
+        size_t prevIndex = (index -1) % dominos.size();
+        // If the domino is rotating and its rotation reaches -90 degrees, check for collision
+        if (isColliding(*this, dominos[nextIndex]) && !dominos[nextIndex].isFalling) {
             std::cout << "COLLISION DETECTED" << std::endl;
             std::cout << "Domino " << nextIndex << " is falling!" << std::endl;
 
-            // Calculate the rotation needed to collide with the next domino
-            // We assume a simple case where the domino falls directly onto the next one.
-            float collisionDistance = sqrt(pow(dominos[nextIndex].x - x, 2) + pow(dominos[nextIndex].z - z, 2));
+            // Only start falling the next domino if it is not already falling
+            dominos[nextIndex].isFalling = true;
 
-            // If collision is detected, stop rotation after a specific angle or when the domino hits the next one
-            float rotationAmount = std::min(100.0f * deltaTime, collisionDistance); // Adjust based on distance
+            // Stop further rotation once collision occurs
+            rotation = -90.0f; // Ensure rotation is capped at -90 degrees after collision
+        }
+        else if(isColliding(*this, dominos[prevIndex]) && !dominos[nextIndex].isFalling)
+        {
+                        std::cout << "COLLISION DETECTED" << std::endl;
+            std::cout << "Domino " << nextIndex << " is falling!" << std::endl;
 
-            rotation += rotationAmount;
-            if (rotation > 90.0f) rotation = 90.0f;
+            // Only start falling the next domino if it is not already falling
+            dominos[nextIndex].isFalling = true;
 
-            // Prevent further rotation after collision
-            if (rotation == 90.0f && !dominos[nextIndex].isFalling) {
-                dominos[nextIndex].isFalling = true;
-            }
+            // Stop further rotation once collision occurs
+            rotation = -90.0f; // Ensure rotation is capped at -90 degrees after collision
         }
     }
 }
-
-
     // Draw the Domino
 void draw() const {
     // Set material properties for the domino
@@ -281,14 +287,12 @@ void onMouseClick(int button, int state, int x, int y) {
 }
 
 bool isColliding(const Domino& d1, const Domino& d2) {
-    // Check if the AABBs of two dominos overlap on any of the X, Y, or Z axes
-    bool collideX = (d1.x - d1.width / 2.0f < d2.x + d2.width / 2.0f && 
-                     d1.x + d1.width / 2.0f > d2.x - d2.width / 2.0f);
-    bool collideY = (d1.y - d1.height / 2.0f < d2.y + d2.height / 2.0f && 
-                     d1.y + d1.height / 2.0f > d2.y - d2.height / 2.0f);
-    bool collideZ = (d1.z - d1.depth / 2.0f < d2.z + d2.depth / 2.0f && 
-                     d1.z + d1.depth / 2.0f > d2.z - d2.depth / 2.0f);
+    // Simplified collision detection: check if dominoes are overlapping
+    float distanceX = fabs(d1.x - d2.x);
+    float distanceZ = fabs(d1.z - d2.z);
 
-    // Return true if there is an overlap on any axis (X, Y, or Z)
-    return collideX || collideY || collideZ;
+    // Consider a small distance threshold for collision
+    return distanceX < (d1.width / 2.0f + d2.width / 2.0f) &&
+           distanceZ < (d1.depth / 2.0f + d2.depth / 2.0f) &&
+           d1.y <= d2.y + d2.height / 2.0f;
 }

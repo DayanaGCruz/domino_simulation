@@ -98,6 +98,7 @@ void update(float deltaTime, float targetX, float targetZ, std::vector<Domino>& 
             // Stop further rotation once collision occurs
             rotation = 90.0f; 
         }
+        /*
         else if(isColliding(*this, dominos[prevIndex]) && !dominos[prevIndex].isFalling)
         {
                         std::cout << "COLLISION DETECTED" << std::endl;
@@ -108,7 +109,7 @@ void update(float deltaTime, float targetX, float targetZ, std::vector<Domino>& 
 
             // Stop further rotation once collision occurs
             rotation = 90.0f; 
-        }
+        }*/
     }
 }
     // Draw the Domino

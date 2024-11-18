@@ -54,64 +54,46 @@ void update(float deltaTime, float targetX, float targetZ, std::vector<Domino>& 
     timeElapsed += deltaTime;
 
     if (timeElapsed < entryDelay) {
-        // Wait until the entry delay has passed
-        return;
+        return; // Wait until the entry delay has passed
     }
 
     if (isEnteringCircle) {
-        // Animate moving from the left into the circle
+        // Move towards the target position
         float distanceToTarget = sqrt(pow(targetX - x, 2) + pow(targetZ - z, 2));
         if (distanceToTarget < 0.1f) {
-            // Stop moving when close to the target
             isEnteringCircle = false;
             y = 1.0f; // Reset to ground level
         } else {
-            // Move towards the target position
             x += speed * deltaTime * (targetX - x) / distanceToTarget;
             z += speed * deltaTime * (targetZ - z) / distanceToTarget;
-
-            // Apply subtle bounce effect
-            y = fabs(sin(distanceToTarget * 2.0f)) * 1.0f; // Reduced bounce speed and height
+            y = fabs(sin(distanceToTarget * 2.0f)) * 1.0f; // Subtle bounce effect
         }
     }
 
     if (isFalling) {
-        std::cout << "Domino " << index << " is falling!\n\t W: " << dominos[index].width << " H: " << dominos[index].height<< " D: "<< dominos[index].depth << "\t X:" << dominos[index].x << " Y: " << dominos[index].y << " Z: " << dominos[index].z << std::endl;
-        rotation += 100.0f * deltaTime;
+        std::cout << "Domino " << index << " is falling!\n";
+        if (index == 0) {
+            // Arbitrary rotation for the first domino
+            rotation += 50.0f * deltaTime; // Custom rotation speed for domino 0
+        } else {
+            // Normal rotation for other dominos based on collision
+            rotation += 100.0f * deltaTime;
+        }
 
         if (rotation > 90.0f) {
-            rotation = 90.0f; 
+            rotation = 90.0f; // Stop rotation at 90 degrees
         }
 
-        // Check for collision with the next domino in the array (neighboring domino)
-        size_t nextIndex = (index + 1) % dominos.size(); // Wrap around if it reaches the end
-        size_t prevIndex = (index -1) % dominos.size();
-        // If the domino is rotating and its rotation reaches -90 degrees, check for collision
-        std::cout << "Checking collision of Domino " << index << " with Domino " << nextIndex << "\n\t W: " << dominos[nextIndex].width << " H: " << dominos[nextIndex].height<< " D: "<< dominos[nextIndex].depth << "\t X:" << dominos[nextIndex].x << " Y: " << dominos[nextIndex].y << " Z: " << dominos[nextIndex].z << std::endl;
-        std::cout << "Checking collision of Domino " << index << " with Domino " << prevIndex << "\n\t W: " << dominos[prevIndex].width << " H: " << dominos[prevIndex].height<< " D: "<< dominos[prevIndex].depth << "\t X:" << dominos[prevIndex].x << " Y: " << dominos[prevIndex].y << " Z: " << dominos[prevIndex].z << std::endl;
+        size_t nextIndex = (index + 1) % dominos.size(); // Wrap around if it's the last domino
         if (isColliding(*this, dominos[nextIndex]) && !dominos[nextIndex].isFalling) {
-            std::cout << "COLLISION DETECTED" << std::endl;
-
-            // Only start falling the next domino if it is not already falling
+            std::cout << "COLLISION DETECTED\n";
             dominos[nextIndex].isFalling = true;
-
-            // Stop further rotation once collision occurs
-            rotation = 90.0f; 
+            rotation = 90.0f; // Stop further rotation once collision occurs
         }
-        /*
-        else if(isColliding(*this, dominos[prevIndex]) && !dominos[prevIndex].isFalling)
-        {
-                        std::cout << "COLLISION DETECTED" << std::endl;
-            std::cout << "Domino " << nextIndex << " is falling!" << std::endl;
-
-            // Only start falling the next domino if it is not already falling
-            dominos[prevIndex].isFalling = true;
-
-            // Stop further rotation once collision occurs
-            rotation = 90.0f; 
-        }*/
     }
 }
+    
+
     // Draw the Domino
 void draw() const {
     // Set material properties for the domino
@@ -188,15 +170,26 @@ int main(int argc, char** argv) {
     glutMouseFunc(onMouseClick);
     glutIdleFunc(display);
 
-    // Initialize dominos
-    for (int i = 0; i < 36; ++i) {
+    // Initialize dominos with more accurate positioning
+    int totalDominos = 50; // Increase number of dominos
+    for (int i = 0; i < totalDominos; ++i) {
         float x = -20.0f;         // Start off-screen to the left
         float z = 0.0f;           // Align in a straight horizontal line
-        float hue = i / 36.0f;    // Hue for color
+        float hue = i / float(totalDominos); // Hue for color
         float r, g, b;
         HSVtoRGB(hue, 1.0f, 1.0f, r, g, b);
         float delay = i * 0.2f;   // Stagger entry with increasing delay
         dominos.emplace_back(x, 3.0f, z, 0.7f, 2.0f, 0.2f, r, g, b, delay);
+    }
+
+    // Update the positions for the circle to ensure that each domino is positioned to fall into the next one
+    std::vector<std::pair<float, float>> circlePositions;
+    float radius = 5.0f; // Set a smaller radius to ensure proximity between dominos
+    for (int i = 0; i < totalDominos; ++i) {
+        float angle = i * (360.0f / totalDominos);
+        float rad = angle * (M_PI / 180.0f);
+        // Position each domino to fall into its neighbor
+        circlePositions.emplace_back(radius * cos(rad), radius * sin(rad));
     }
 
     glutMainLoop();
@@ -239,12 +232,18 @@ void display() {
     gluLookAt(15.0, 10.0, 15.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
 
     // Set target positions for the circle
-    std::vector<std::pair<float, float>> circlePositions;
-    for (int i = 0; i < 36; ++i) {
-        float angle = i * (360.0f / 36);
-        float rad = angle * (M_PI / 180.0f);
-        circlePositions.emplace_back(5.0f * cos(rad), 5.0f * sin(rad));
-    }
+        std::vector<std::pair<float, float>> circlePositions;
+        float radius = 5.0f; // Radius of the circle
+        float angleIncrement = 360.0f / dominos.size(); // Angle between each domino
+        
+        for (int i = 0; i < dominos.size(); ++i) {
+            float angle = i * angleIncrement; // Increment angle for each domino
+            float rad = angle * (M_PI / 180.0f); // Convert angle to radians
+            float targetX = radius * cos(rad); // X position in the circle
+            float targetZ = radius * sin(rad); // Z position in the circle
+            
+            circlePositions.emplace_back(targetX, targetZ);
+        }
 
     // Update and draw each domino
     for (size_t i = 0; i < dominos.size(); ++i) {

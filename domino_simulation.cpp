@@ -1,3 +1,22 @@
+/* Dayana Gonzalez Cruz & Yulissa Valencia
+CST-310: Graphics
+Project 8: Simple Demo Scene
+Nov. 17th, 2024
+TR1100A Prof. Citro
+
+The following code is a simple domino simulation that demonstrates the use of physics and collision detection in OpenGL.
+The simulation consists of a series of dominos that fall into each other in a circular pattern. The dominos are initially
+positioned in a cricle and then fall into a circular pattern. The first domino is set to fall, and the rest of the
+dominos fall based on the collision detection with their neighbors. The dominos are represented as rectangular prisms
+with different colors. The simulation can be started by clicking the left mouse button and reset by clicking the right
+mouse button. The simulation uses the HSV color space to generate a range of colors for the dominos.
+
+LMB- Start the simulation
+RMB- Reset the simulation
+
+*/
+
+
 #include <GL/glut.h>
 #include <vector>
 #include <cmath>
@@ -37,6 +56,7 @@ public:
     float speed;            // Speed of movement into the circle
     float entryDelay;       // Time delay before the domino starts moving
     float timeElapsed;      // Tracks elapsed time since simulation start
+    int rotationModifier;   // Rotation direction modifier (1 or -1)
 
     // Constructor
     Domino(GLfloat xPos, GLfloat yPos, GLfloat zPos,
@@ -47,76 +67,84 @@ public:
           width(w), height(h), depth(d),
           rotation(0.0f), r(red), g(green), b(blue),
           isFalling(false), isEnteringCircle(true),
-          speed(3.0f), entryDelay(delay), timeElapsed(0.0f) {}
+          speed(3.0f), entryDelay(delay), timeElapsed(0.0f), rotationModifier(-1) {}
 
-// Update the Domino's animation
-void update(float deltaTime, float targetX, float targetZ, std::vector<Domino>& dominos, size_t index) {
-    timeElapsed += deltaTime;
+    // Update the Domino's animation
+    void update(float deltaTime, float targetX, float targetZ, std::vector<Domino>& dominos, size_t index) {
+        timeElapsed += deltaTime;
 
-    if (timeElapsed < entryDelay) {
-        return; // Wait until the entry delay has passed
-    }
+        if (timeElapsed < entryDelay) {
+            return; // Wait until the entry delay has passed
+        }
 
-    if (isEnteringCircle) {
-        // Move towards the target position
-        float distanceToTarget = sqrt(pow(targetX - x, 2) + pow(targetZ - z, 2));
-        if (distanceToTarget < 0.1f) {
-            isEnteringCircle = false;
-            y = 1.0f; // Reset to ground level
-        } else {
-            x += speed * deltaTime * (targetX - x) / distanceToTarget;
-            z += speed * deltaTime * (targetZ - z) / distanceToTarget;
-            y = fabs(sin(distanceToTarget * 2.0f)) * 1.0f; // Subtle bounce effect
+        if (isEnteringCircle) {
+            // Move towards the target position
+            float distanceToTarget = sqrt(pow(targetX - x, 2) + pow(targetZ - z, 2));
+            if (distanceToTarget < 0.1f) {
+                isEnteringCircle = false;
+                y = 1.0f; // Reset to ground level
+            } else {
+                x += speed * deltaTime * (targetX - x) / distanceToTarget;
+                z += speed * deltaTime * (targetZ - z) / distanceToTarget;
+                y = fabs(sin(distanceToTarget * 2.0f)) * 1.0f; // Subtle bounce effect
+            }
+        }
+
+        if (isFalling) {
+            std::cout << "Domino " << index << " is falling!\n";
+
+            if (index == 0) {
+                // Arbitrary rotation for the first domino
+                rotation += 50.0f * deltaTime; // Custom rotation speed for domino 0
+            } else {
+                // Rotate in the opposite direction based on the collision with the neighbor
+                rotation += 100.0f * deltaTime * rotationModifier;
+            }
+
+            if (rotationModifier == -1 && rotation < -90.0f) {
+                rotation = -90.0f; // Stop rotation at -90 degrees
+            } else if (rotationModifier == 1 && rotation > 90.0f) {
+                rotation = 90.0f; // Stop rotation at 90 degrees
+            }
+
+            size_t nextIndex = (index + 1) % dominos.size(); // Wrap around if it's the last domino
+            if (isColliding(*this, dominos[nextIndex]) && !dominos[nextIndex].isFalling) {
+                std::cout << "COLLISION DETECTED\n";
+                // Set the rotationModifier based on the x position of the neighboring domino
+                if (dominos[nextIndex].x > x) {
+                    rotationModifier = -1; // Fall in the default direction
+                } else {
+                    rotationModifier = 1; // Fall in the opposite direction
+                }
+                dominos[nextIndex].isFalling = true;
+                rotation = 90.0f * rotationModifier; // Stop further rotation once collision occurs
+            }
         }
     }
-
-    if (isFalling) {
-        std::cout << "Domino " << index << " is falling!\n";
-        if (index == 0) {
-            // Arbitrary rotation for the first domino
-            rotation += 50.0f * deltaTime; // Custom rotation speed for domino 0
-        } else {
-            // Normal rotation for other dominos based on collision
-            rotation += 100.0f * deltaTime;
-        }
-
-        if (rotation > 90.0f) {
-            rotation = 90.0f; // Stop rotation at 90 degrees
-        }
-
-        size_t nextIndex = (index + 1) % dominos.size(); // Wrap around if it's the last domino
-        if (isColliding(*this, dominos[nextIndex]) && !dominos[nextIndex].isFalling) {
-            std::cout << "COLLISION DETECTED\n";
-            dominos[nextIndex].isFalling = true;
-            rotation = 90.0f; // Stop further rotation once collision occurs
-        }
-    }
-}
-    
 
     // Draw the Domino
-void draw() const {
-    // Set material properties for the domino
-    GLfloat matDiffuse[] = {r, g, b, 1.0f}; // Diffuse color
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, matDiffuse);
+    void draw() const {
+        // Set material properties for the domino
+        GLfloat matDiffuse[] = {r, g, b, 1.0f}; // Diffuse color
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, matDiffuse);
 
-    glPushMatrix();
+        glPushMatrix();
 
-    // Move to bottom of the domino (translate down by half its height)
-    glTranslatef(x, y - height / 2.0f, z);
+        // Move to bottom of the domino (translate down by half its height)
+        glTranslatef(x, y - height / 2.0f, z);
 
-    // Rotate around the X-axis for front-facing fall (rotation around bottom edge)
-    glRotatef(rotation, 1.0f, 0.0f, 0.0f);
+        // Rotate around the X-axis for front-facing fall (rotation around bottom edge)
+        glRotatef(rotation, 1.0f, 0.0f, 0.0f);
 
-    // Translate back to original position (restore the top of the domino to its initial height)
-    glTranslatef(0.0f, height / 2.0f, 0.0f);
+        // Translate back to original position (restore the top of the domino to its initial height)
+        glTranslatef(0.0f, height / 2.0f, 0.0f);
 
-    // Draw the domino
-    glColor3f(r, g, b);
-    drawRectangularPrism(width, height, depth);
+        // Draw the domino
+        glColor3f(r, g, b);
+        drawRectangularPrism(width, height, depth);
 
-    glPopMatrix();
-}
+        glPopMatrix();
+    }
 
 private:
     // Utility function to draw a rectangular prism
